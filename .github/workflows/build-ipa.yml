@@ -1,1 +1,54 @@
 
+# Builds Drive Deck for iPhone on GitHub's Mac computers and produces DriveDeck.ipa.
+# Put this file in your repository at:  .github/workflows/build-ipa.yml
+# and upload drive-deck-ios.zip to the top of the same repository.
+name: Build iPhone app
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - drive-deck-ios.zip
+      - .github/workflows/build-ipa.yml
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - name: Get the files
+        uses: actions/checkout@v4
+
+      - name: Unpack the app project
+        run: unzip -q drive-deck-ios.zip -d src
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Create the Xcode project
+        working-directory: src
+        run: xcodegen generate
+
+      - name: Build the app (unsigned)
+        working-directory: src
+        run: |
+          xcodebuild -project DriveDeck.xcodeproj -target DriveDeck \
+            -configuration Release -sdk iphoneos \
+            SYMROOT="$PWD/build" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Package DriveDeck.ipa
+        working-directory: src
+        run: |
+          mkdir Payload
+          cp -R build/Release-iphoneos/DriveDeck.app Payload/
+          zip -qry ../DriveDeck.ipa Payload
+          ls -la ../DriveDeck.ipa
+
+      - name: Save DriveDeck.ipa for download
+        uses: actions/upload-artifact@v4
+        with:
+          name: DriveDeck-ipa
+          path: DriveDeck.ipa
+          retention-days: 30
